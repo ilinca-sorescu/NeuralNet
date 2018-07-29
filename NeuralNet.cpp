@@ -43,7 +43,7 @@ struct Layer {
     }
 
     static double relu(double x) {
-        return std::max(0.0, x);
+        return std::max(0.01, x);
     }
 
     static double reluDerivative(double x) {
@@ -127,12 +127,14 @@ class NeuralNet {
         }
 
         void backProp(double actual, double expected, std::vector<double> in) {
-            //printDelta();
+            printWeights();
 
             auto output_neuron = &nn_[nn_.size()-1].layer_[0];
-            output_neuron->delta_ = (expected - actual) * 
+            output_neuron->delta_ = //(expected - actual) * 
+                (actual-expected) *
                 Layer::reluDerivative(output_neuron->input_);
-           
+          
+            //printf("%lf\n", output_neuron->delta_);
             std::vector<Layer>::iterator layer = nn_.end() - 2;
             for(; layer >= nn_.begin(); --layer) {
                 int index_j = 1; // 0 is for the bias unit
@@ -140,12 +142,17 @@ class NeuralNet {
                     double err = 0;
                     for(auto &k : (layer+1)->layer_) {
                         err += k.weights_[index_j] * k.delta_;
+                        //printf("%lf\n", k.delta_);
                     }
 
                     j.delta_ = Layer::reluDerivative(j.input_) * err;
+                    //printf("!%lf %lf %lf\n", err, j.input_, 
+                    //        Layer::reluDerivative(j.input_));
                     for(auto &i : (layer+1)->layer_) {
                         i.weights_[index_j] += learning_rate_ * j.output_ *
                             i.delta_;
+                        //printf("%lf %lf %lf\n", learning_rate_, j.output_,
+                        //        i.delta_);
                     }
                     ++index_j;
                 }
@@ -164,7 +171,7 @@ class NeuralNet {
                 for(auto &i : l.layer_)
                     i.weights_[0] += learning_rate_ * i.delta_;
 
-           //printWeights();
+          printWeights();
         }
 
     public:
@@ -202,7 +209,10 @@ class NeuralNet {
         }
 };
 
-std::vector<TrainingEx> getTrainingData(int ninputs, const char* filename) {
+std::vector<TrainingEx> getTrainingData(int ninputs, const char* filename,
+        double scaling_factors[]) {
+    // scaling_factors contains ninputs+1 items, each for scaling one column of
+    // the input.
     std::vector<TrainingEx> result;
     std::ifstream file(filename);
     while(true) {
@@ -210,13 +220,13 @@ std::vector<TrainingEx> getTrainingData(int ninputs, const char* filename) {
         for(int i=0; i != ninputs; ++i) {
             double x;
             file >> x;
-            in.push_back(x);
+            in.push_back(x*scaling_factors[i]);
         }
         double y;
         file >> y;
         if(file.eof())
             break;
-        result.push_back(TrainingEx(in, y));
+        result.push_back(TrainingEx(in, y*scaling_factors[ninputs]));
     }
     return result;
 }
@@ -225,10 +235,12 @@ int main() {
     // <3
     int ninputs = 2;
     std::vector<int> hidden_units = {1, 1};//31, 31, 31, 31};
-    double learning_rate = 0.03;
+    double learning_rate = 0.00003;
     auto nn = NeuralNet(ninputs, hidden_units, learning_rate);
-    nn.train(getTrainingData(ninputs, "cylinder.train"));
-    auto valid = nn.validate(getTrainingData(ninputs, "cylinder.validate"));
+    double scaling_factors[] = {1.0, 1.0, 1.0/10000};
+    nn.train(getTrainingData(ninputs, "cylinder.train", scaling_factors));
+    auto valid = nn.validate(getTrainingData(ninputs, "cylinder.validate",
+                scaling_factors));
     printf("validation: %lf\n", valid);
     printf("Predicted volume of cylinder:%lf\n", nn.getOutput({1.0, 0.3}));
     return 0;
