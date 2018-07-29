@@ -11,10 +11,13 @@ struct Neuron {
     double delta_;
 
     Neuron(int inputs) {
-        // Creates a neuron with inputs+1 weights in [-1, 1]. The first weight 
+        // Creates a neuron with inputs+1 weights in [0, 1]. The first weight 
         // corresponds to the bias unit.
         for(int i=0; i <= inputs; ++i)
-            weights_.push_back((double)std::rand() / (RAND_MAX/2) - 1);
+            weights_.push_back((double)std::rand() / RAND_MAX);
+        input_ = 0;
+        output_ = 0;
+        delta_ = 0;
     }
 };
 
@@ -34,7 +37,19 @@ struct Layer {
 
     static double sigmoidDerivative(double x) {
         double aux = exp(-x);
-        return aux / ((1 + aux) * (1 + aux));
+        if(std::isinf(aux))
+            return 0.0;
+        return aux / ((1.0 + aux) * (1.0 + aux));
+    }
+
+    static double relu(double x) {
+        return std::max(0.0, x);
+    }
+
+    static double reluDerivative(double x) {
+        if(x > 0.0)
+            return 1.0;
+        return 0.0;
     }
 
     std::vector<double> forwardProp(std::vector<double> in) {
@@ -48,7 +63,7 @@ struct Layer {
             for(int i=0; i != in.size(); ++i)
                 a += in[i] * neuron.weights_[i];
             neuron.input_ = a;
-            neuron.output_ = sigmoid(a);
+            neuron.output_ = relu(a);
             out.push_back(neuron.output_);
         }
         return out;
@@ -81,32 +96,75 @@ class NeuralNet {
             }
         }
 
-        void backProp(double actual, double expected) {
-            auto output_neuron = nn_[nn_.size()-1].layer_[0];
-            output_neuron.delta_ = (expected - actual) * 
-                Layer::sigmoidDerivative(output_neuron.input_);
-            for(auto &w : output_neuron.weights_)
-                w += learning_rate_ * output_neuron.delta_ *
-                    output_neuron.output_;
+        void printDelta() {
+            // Debug function
+            int index_l = 0;
+            for(const auto& l : nn_) {
+                printf("layer: %d\n", index_l);
+                int index_n = 0;
+                for(const auto& n : l.layer_) {
+                    printf("neuron: %d %lf\n", index_n, n.delta_);
+                    ++index_n;
+                }
+                ++index_l;
+            }
+        }
 
+        void printWeights() {
+            // Debug function
+            int index_l = 0;
+            for(const auto& l : nn_) {
+                printf("layer: %d\n", index_l);
+                int index_n = 0;
+                for(const auto& n : l.layer_) {
+                    printf("neuron: %d\n", index_n);
+                    for(const auto& w : n.weights_)
+                        printf("%lf\n", w);
+                    ++index_n;
+                }
+                ++index_l;
+            }
+        }
+
+        void backProp(double actual, double expected, std::vector<double> in) {
+            //printDelta();
+
+            auto output_neuron = &nn_[nn_.size()-1].layer_[0];
+            output_neuron->delta_ = (expected - actual) * 
+                Layer::reluDerivative(output_neuron->input_);
+           
             std::vector<Layer>::iterator layer = nn_.end() - 2;
-            for(; layer != nn_.begin(); --layer)
+            for(; layer >= nn_.begin(); --layer) {
+                int index_j = 1; // 0 is for the bias unit
                 for(auto &j : layer->layer_) {
                     double err = 0;
-                    double index_k = 0;
                     for(auto &k : (layer+1)->layer_) {
-                        err += j.weights_[index_k] * k.delta_;
-                        ++index_k;
+                        err += k.weights_[index_j] * k.delta_;
                     }
 
-                    j.delta_ = Layer::sigmoidDerivative(j.input_) * err;
-                    double index_i = 0;
+                    j.delta_ = Layer::reluDerivative(j.input_) * err;
                     for(auto &i : (layer+1)->layer_) {
-                        j.weights_[index_i] += learning_rate_ * j.output_ *
+                        i.weights_[index_j] += learning_rate_ * j.output_ *
                             i.delta_;
-                        ++index_i;
                     }
+                    ++index_j;
                 }
+            }
+
+            // first layer
+            for(auto &i : nn_[0].layer_) {
+                for(int index=0; index != in.size(); ++index) {
+                    i.weights_[index+1] += learning_rate_ * i.delta_ *
+                        in[index]; 
+                }
+            }
+
+            // bias unit
+            for(auto &l : nn_) 
+                for(auto &i : l.layer_)
+                    i.weights_[0] += learning_rate_ * i.delta_;
+
+           //printWeights();
         }
 
     public:
@@ -127,7 +185,7 @@ class NeuralNet {
         void train(std::vector<TrainingEx> data) {
             for(const auto &d : data) {
                 double result = getOutput(d.in_);
-                backProp(result, d.out_);
+                backProp(result, d.out_, d.in_);
             }
         }
 
@@ -156,9 +214,9 @@ std::vector<TrainingEx> getTrainingData(int ninputs, const char* filename) {
         }
         double y;
         file >> y;
-        result.push_back(TrainingEx(in, y));
         if(file.eof())
             break;
+        result.push_back(TrainingEx(in, y));
     }
     return result;
 }
@@ -166,8 +224,8 @@ std::vector<TrainingEx> getTrainingData(int ninputs, const char* filename) {
 int main() {
     // <3
     int ninputs = 2;
-    auto hidden_units = {31, 31, 31, 31};
-    double learning_rate = 3;
+    std::vector<int> hidden_units = {1, 1};//31, 31, 31, 31};
+    double learning_rate = 0.03;
     auto nn = NeuralNet(ninputs, hidden_units, learning_rate);
     nn.train(getTrainingData(ninputs, "cylinder.train"));
     auto valid = nn.validate(getTrainingData(ninputs, "cylinder.validate"));
