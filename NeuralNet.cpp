@@ -87,6 +87,7 @@ class NeuralNet {
         std::vector<Layer> nn_;
         double learning_rate_;
         double regularization_term_;
+        double num_epochs_;
 
         void forwardProp(std::vector<double> in) {
             // The input does not contain the bias unit. Adding the bias unit.
@@ -171,11 +172,13 @@ class NeuralNet {
 
     public:
         NeuralNet(int ninputs, std::vector<int> architecture,
-                double learning_rate = 10, double regularization_term = 0.0) {
+                double learning_rate = 10, double regularization_term = 0.0,
+                double num_epochs = 100) {
             ninputs_ = ninputs;
             nn_.push_back(Layer(architecture[0], ninputs));
             learning_rate_ = learning_rate;
             regularization_term_ = regularization_term;
+            num_epochs_ = num_epochs;
             for(int i=1; i < architecture.size(); ++i)
                 nn_.push_back(Layer(architecture[i], architecture[i-1]));
             nn_.push_back(Layer(1, architecture[architecture.size()-1]));
@@ -188,7 +191,7 @@ class NeuralNet {
 
         void train(std::vector<TrainingEx> data) {
             for(const auto &d : data) {
-                for(int i = 0; i != 100; ++i) {
+                for(int i = 0; i != num_epochs_; ++i) {
                     double result = getOutput(d.in_);
                     backProp(result, d.out_, d.in_);
                 }
@@ -235,16 +238,16 @@ int main() {
     int ninputs = 2;
     std::vector<int> hidden_units = {11, 11, 11};
     auto nn = NeuralNet(ninputs, hidden_units);
-    double scaling_factors[] = {1.0/100, 1.0/100, 1.0/4000000};
+    double scaling_factors[] = {1.0/10, 1.0/10, 1.0/4000};
     nn.train(getTrainingData(ninputs, "cylinder.train", scaling_factors));
     auto valid = nn.validate(getTrainingData(ninputs, "cylinder.validate",
                 scaling_factors));
     printf("validation error: %lf\n", valid);
     auto scaled_inputs = {
-            9.90296000584 * scaling_factors[0],
-            11.6176637674 * scaling_factors[1]};
+            6.31117006685 * scaling_factors[0],
+            7.69638094464 * scaling_factors[1]};
     printf("Predicted volume of cylinder: %lf\n", nn.getOutput(scaled_inputs) / 
             scaling_factors[ninputs]);
-    printf("Expected volume of cylinder: %lf\n", 3579.30515659);
+    printf("Expected volume of cylinder: %lf\n", 963.066319359);
     return 0;
 }
