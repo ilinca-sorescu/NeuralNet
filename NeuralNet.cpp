@@ -236,7 +236,7 @@ int main() {
     std::vector<int> hidden_units = {11, 11, 11};
     auto nn = NeuralNet(ninputs, hidden_units);
     double scaling_factors[] = {1.0/100, 1.0/100, 1.0/4000000};
-    nn.train(getTrainingData(ninputs, "cylinder2.train", scaling_factors));
+    nn.train(getTrainingData(ninputs, "cylinder.train", scaling_factors));
     auto valid = nn.validate(getTrainingData(ninputs, "cylinder.validate",
                 scaling_factors));
     printf("validation error: %lf\n", valid);
