@@ -238,6 +238,9 @@ int main() {
     int ninputs = 2;
     std::vector<int> hidden_units = {11, 11, 11};
     auto nn = NeuralNet(ninputs, hidden_units);
+    // Radius and height of the cylinder are in [0, 10].
+    // The volume of the cylinder is in [0, 4000].
+    // Scaling all features to [0, 1].
     double scaling_factors[] = {1.0/10, 1.0/10, 1.0/4000};
     nn.train(getTrainingData(ninputs, "cylinder.train", scaling_factors));
     auto valid = nn.validate(getTrainingData(ninputs, "cylinder.validate",
